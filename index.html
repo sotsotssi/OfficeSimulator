@@ -598,7 +598,7 @@ function addCharacter() {
     };
 
     state.characters.push(char);
-    addLog('system', `${char.name}님(${char.mbti})이 ${state.companies[char.companyId].name}의 ${RANKS[char.rankIdx].title}(으)로 입사했습니다.`);
+    addLog('system', `${char.name} 님이 ${state.companies[char.companyId].name}의 ${RANKS[char.rankIdx].title}(으)로 입사했습니다.`);
     nameInput.value = '';
     
     renderRoster();
@@ -761,7 +761,7 @@ function checkPromotionsAndLove() {
             if (char.rankIdx < RANKS.length - 1) {
                 char.rankIdx++;
                 char.xp = 0;
-                addLog('system', `축하합니다! ${char.name}님이 ${RANKS[char.rankIdx].title}(으)로 승진했습니다!`);
+                addLog('system', `축하합니다! ${char.name} 님이 ${RANKS[char.rankIdx].title}(으)로 승진했습니다!`);
             } else {
                 char.rankIdx = 0;
                 char.xp = 0;
@@ -778,7 +778,7 @@ function checkPromotionsAndLove() {
                     if (Math.random() < 0.1) {
                         char.partnerId = targetId;
                         target.partnerId = char.id;
-                        addLog('love', `💖 ${char.name}님과 ${target.name}님이 연애를 시작했습니다! (친밀도: ${score})`);
+                        addLog('love', `💖 ${char.name} 님과 ${target.name} 님이 연애를 시작했습니다! (친밀도: ${score})`);
                         break; 
                     }
                 }
@@ -789,7 +789,7 @@ function checkPromotionsAndLove() {
                 const partner = state.characters.find(c => c.id === char.partnerId);
                 char.partnerId = null;
                 if(partner) partner.partnerId = null;
-                addLog('love', `💔 ${char.name}님과 ${partner ? partner.name : '상대'}님이 헤어졌습니다.`);
+                addLog('love', `💔 ${char.name} 님과 ${partner ? partner.name : '상대'} 님이 헤어졌습니다.`);
             }
         }
     });
@@ -1164,3 +1164,4 @@ init();
 </script>
 </body>
 </html>
+
