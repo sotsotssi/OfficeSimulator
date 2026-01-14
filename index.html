@@ -1,0 +1,1166 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>오피스 시뮬레이터</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { font-family: 'Noto Sans KR', sans-serif; background-color: #f3f4f6; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        
+        /* Logs */
+        .log-entry { margin-bottom: 8px; padding: 8px; border-radius: 6px; background: white; border-left: 4px solid #ddd; font-size: 0.9rem; }
+        .log-news-good { border-left-color: #ef4444; background: #fef2f2; } /* Stock Up (Red in KR) */
+        .log-news-bad { border-left-color: #3b82f6; background: #eff6ff; } /* Stock Down (Blue in KR) */
+        .log-news-neutral { border-left-color: #9ca3af; background: #f3f4f6; }
+        .log-work-success { border-left-color: #10b981; }
+        .log-work-fail { border-left-color: #ef4444; }
+        .log-collab-success { border-left-color: #8b5cf6; background: #f5f3ff; }
+        .log-collab-fail { border-left-color: #6d28d9; background: #ede9fe; }
+        .log-love { border-left-color: #ec4899; background: #fdf2f8; }
+        .log-system { border-left-color: #6b7280; background: #e5e7eb; font-weight: bold; }
+        
+        /* Map Styles */
+        .company-building { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; min-width: 160px; }
+        .floor { border-bottom: 1px solid #f0f0f0; padding: 4px; min-height: 45px; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 4px; }
+        .floor-label { font-size: 0.7rem; color: #9ca3af; width: 100%; text-align: center; }
+        .char-icon { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; color: white; cursor: pointer; position: relative; user-select: none; }
+        .char-status { position: absolute; bottom: -2px; right: -2px; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white; }
+        
+        /* Editable Input */
+        .editable-input { background: transparent; border: 1px solid white; color: white; text-align: center; width: 100%; font-weight: bold; font-size: 0.875rem; }
+        .editable-input:focus { outline: none; border-bottom: 1px solid #e5e7eb; background: rgba(255,255,255,0.2); }
+
+        /* Modal */
+        .modal { display: none; position: fixed; z-index: 100; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4); }
+        .modal-content { background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 90%; max-width: 500px; border-radius: 8px; }
+        
+        .scroll-hide::-webkit-scrollbar { display: none; }
+        .scroll-hide { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden text-gray-800">
+
+    <!-- Header -->
+    <header class="bg-white shadow-sm p-4 flex justify-between items-center z-10">
+        <div>
+            <h1 class="font-bold text-xl text-indigo-600"><i class="fa-solid fa-building"></i> 오피스 시뮬레이터 <a href="https://x.com/bb_uu_t" target="_blank"><span class="text-xs font-normal text-slate-500 dark:text-slate-400 ml-1">@bb_uu_t</span></a></h1>
+            <p class="text-xs text-gray-500">Day <span id="day-display">1</span></p>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 overflow-hidden relative bg-gray-100">
+        
+        <!-- Tabs Navigation -->
+        <div class="flex bg-white border-b border-gray-200 overflow-x-auto">
+            <button onclick="switchTab('roster')" class="flex-1 py-3 px-2 text-sm font-medium text-gray-500 hover:text-indigo-600 border-b-2 border-transparent hover:border-indigo-600 transition-colors tab-btn active-tab whitespace-nowrap" data-tab="roster">
+                <i class="fa-solid fa-users mb-1 block"></i> 명단관리
+            </button>
+            <button onclick="switchTab('map')" class="flex-1 py-3 px-2 text-sm font-medium text-gray-500 hover:text-indigo-600 border-b-2 border-transparent hover:border-indigo-600 transition-colors tab-btn whitespace-nowrap" data-tab="map">
+                <i class="fa-solid fa-building mb-1 block"></i> 회사 맵
+            </button>
+            <button onclick="switchTab('logs')" class="flex-1 py-3 px-2 text-sm font-medium text-gray-500 hover:text-indigo-600 border-b-2 border-transparent hover:border-indigo-600 transition-colors tab-btn whitespace-nowrap" data-tab="logs">
+                <i class="fa-solid fa-list-check mb-1 block"></i> 로그
+            </button>
+            <button onclick="switchTab('settings')" class="flex-1 py-3 px-2 text-sm font-medium text-gray-500 hover:text-indigo-600 border-b-2 border-transparent hover:border-indigo-600 transition-colors tab-btn whitespace-nowrap" data-tab="settings">
+                <i class="fa-solid fa-floppy-disk mb-1 block"></i> 설정
+            </button>
+        </div>
+
+        <!-- Tab: Roster -->
+        <div id="roster" class="tab-content active h-full overflow-y-auto pb-32 p-4">
+            <div class="bg-white p-4 rounded-lg shadow mb-4">
+                <h2 class="font-bold mb-2 text-sm text-gray-600">신규 채용 (최대 30명)</h2>
+                <div class="grid grid-cols-2 gap-2 mb-2">
+                    <input type="text" id="new-name" placeholder="이름" class="border p-2 rounded text-sm w-full">
+                    <select id="new-mbti" class="border p-2 rounded text-sm w-full">
+                        <option value="">MBTI 선택</option>
+                    </select>
+                </div>
+                <div class="grid grid-cols-2 gap-2 mb-2">
+                    <select id="new-company" class="border p-2 rounded text-sm w-full">
+                        <!-- Options generated by JS -->
+                    </select>
+                    <select id="new-rank" class="border p-2 rounded text-sm w-full">
+                        <!-- Options generated by JS -->
+                    </select>
+                </div>
+                <button onclick="addCharacter()" class="w-full bg-indigo-600 text-white py-2 rounded hover:bg-indigo-700 transition">채용하기</button>
+            </div>
+            <div class="text-xs text-gray-400 mb-2 text-right">* 사원 카드를 더블클릭하여 상세 친밀도를 확인하세요.</div>
+            <div id="roster-list" class="space-y-2">
+                <!-- Character cards go here -->
+            </div>
+        </div>
+
+        <!-- Tab: Map -->
+        <div id="map" class="tab-content h-full overflow-auto pb-32 p-4">
+            <div class="flex items-center justify-center mb-4 space-x-4">
+                <button onclick="changeCompanyCount(-1)" class="w-8 h-8 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-gray-600 font-bold shadow">-</button>
+                <span class="text-sm font-bold text-gray-600">회사 수 조절</span>
+                <button onclick="changeCompanyCount(1)" class="w-8 h-8 rounded-full bg-indigo-100 hover:bg-indigo-200 flex items-center justify-center text-indigo-600 font-bold shadow">+</button>
+            </div>
+            <div class="text-xs text-gray-400 mb-2 text-center">* 회사 이름을 더블클릭하면 사명을 변경할 수 있습니다.</div>
+            
+            <div class="w-full overflow-x-auto pb-4">
+                <div class="flex justify-center space-x-4 h-full items-start min-w-max px-2" id="map-container">
+                    <!-- Buildings go here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab: Logs -->
+        <div id="logs" class="tab-content h-full overflow-y-auto pb-32 p-4"> <!-- Added pb-32 for mobile toolbar safety -->
+            <div class="flex justify-between items-center mb-2">
+                <h3 class="font-bold text-gray-700">업무 일지</h3>
+                <button onclick="clearLogs()" class="text-xs text-gray-400 hover:text-gray-600">기록 삭제</button>
+            </div>
+            <div id="log-container" class="space-y-2">
+                <div class="log-entry log-system">시뮬레이션을 시작합니다. 캐릭터를 생성하고 다음 날로 진행해보세요!</div>
+            </div>
+        </div>
+
+        <!-- Tab: Settings (Save/Load) -->
+        <div id="settings" class="tab-content h-full overflow-y-auto pb-32 p-4">
+            <h2 class="font-bold text-lg text-gray-700 mb-4">설정 및 저장</h2>
+            
+            <!-- Basic Save/Load -->
+            <div class="bg-white p-4 rounded-lg shadow mb-4 border-l-4 border-indigo-500">
+                <h3 class="font-bold text-gray-800 mb-2">📂 기본 데이터 (명단/회사)</h3>
+                <p class="text-xs text-gray-500 mb-3">회사 목록과 사원 명단(이름, MBTI, 직급)만 저장합니다.<br>진행 상황(친밀도, 경험치 등)은 초기화됩니다. 시뮬레이션을 처음부터 다시 시작할 때 유용합니다.</p>
+                
+                <div class="grid grid-cols-2 gap-2 mb-2">
+                    <button onclick="saveData('basic')" class="bg-indigo-100 text-indigo-700 py-2 rounded hover:bg-indigo-200 font-bold text-sm">
+                        <i class="fa-solid fa-save"></i> 브라우저 저장
+                    </button>
+                    <button onclick="loadData('basic')" class="bg-indigo-600 text-white py-2 rounded hover:bg-indigo-700 font-bold text-sm">
+                        <i class="fa-solid fa-upload"></i> 브라우저 로드
+                    </button>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <button onclick="exportJSON('basic')" class="bg-gray-100 text-gray-700 py-2 rounded hover:bg-gray-200 font-bold text-sm border">
+                        <i class="fa-solid fa-file-export"></i> JSON 내보내기
+                    </button>
+                    <button onclick="importJSON('basic')" class="bg-gray-600 text-white py-2 rounded hover:bg-gray-700 font-bold text-sm">
+                        <i class="fa-solid fa-file-import"></i> JSON 불러오기
+                    </button>
+                </div>
+            </div>
+
+            <!-- Full Save/Load -->
+            <div class="bg-white p-4 rounded-lg shadow mb-4 border-l-4 border-green-500">
+                <h3 class="font-bold text-gray-800 mb-2">💾 전체 데이터 (진행상황 포함)</h3>
+                <p class="text-xs text-gray-500 mb-3">현재 날짜, 사원 간 친밀도 등 모든 데이터를 저장합니다. 단, 로그는 저장되지 않습니다.<br>중단했다가 이어서 할 때 유용합니다.</p>
+                
+                <div class="grid grid-cols-2 gap-2 mb-2">
+                    <button onclick="saveData('full')" class="bg-green-100 text-green-700 py-2 rounded hover:bg-green-200 font-bold text-sm">
+                        <i class="fa-solid fa-save"></i> 브라우저 저장
+                    </button>
+                    <button onclick="loadData('full')" class="bg-green-600 text-white py-2 rounded hover:bg-green-700 font-bold text-sm">
+                        <i class="fa-solid fa-upload"></i> 브라우저 로드
+                    </button>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <button onclick="exportJSON('full')" class="bg-gray-100 text-gray-700 py-2 rounded hover:bg-gray-200 font-bold text-sm border">
+                        <i class="fa-solid fa-file-export"></i> JSON 내보내기
+                    </button>
+                    <button onclick="importJSON('full')" class="bg-gray-600 text-white py-2 rounded hover:bg-gray-700 font-bold text-sm">
+                        <i class="fa-solid fa-file-import"></i> JSON 불러오기
+                    </button>
+                </div>
+            </div>
+
+            <div class="text-center mt-8">
+                <button onclick="if(confirm('정말 초기화하시겠습니까?')) { localStorage.clear(); location.reload(); }" class="text-xs text-red-400 underline">
+                    데이터 완전 초기화
+                </button>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Affinity Modal -->
+    <div id="affinity-modal" class="modal">
+        <div class="modal-content">
+            <div class="flex justify-between items-center mb-4">
+                <h3 id="modal-title" class="font-bold text-lg">인맥 현황</h3>
+                <span onclick="closeModal()" class="cursor-pointer text-gray-500 text-xl">&times;</span>
+            </div>
+            <div id="modal-body" class="overflow-y-auto max-h-64">
+                <!-- Affinity table content -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Floating Action Button -->
+    <div class="fixed bottom-6 right-6 z-50">
+        <button onclick="nextDay()" class="bg-indigo-600 hover:bg-indigo-700 text-white rounded-full w-16 h-16 shadow-lg flex items-center justify-center text-2xl transition transform hover:scale-105 active:scale-95">
+            <i class="fa-solid fa-forward"></i>
+        </button>
+        <div class="text-center mt-1 text-xs font-bold text-indigo-800 bg-white/80 rounded px-1">다음 날</div>
+    </div>
+
+<script>
+
+// --- Constants & Data ---
+
+const MBTI_TYPES = [
+    "ISTJ", "ISFJ", "INFJ", "INTJ", "ISTP", "ISFP", "INFP", "INTP",
+    "ESTP", "ESFP", "ENFP", "ENTP", "ESTJ", "ESFJ", "ENFJ", "ENTJ"
+];
+
+const COMPATIBILITY_DATA = {
+    "INFP": { "ENFJ": 5, "ENTJ": 5, "INFP": 4, "ENFP": 4, "INFJ": 4, "INTJ": 4, "INTP": 4, "ENTP": 4, "ISFP": 1, "ESFP": 1, "ISTP": 1, "ESTP": 1, "ISFJ": 1, "ESFJ": 1, "ISTJ": 1, "ESTJ": 1 },
+    "ENFP": { "INFJ": 5, "INTJ": 5, "INFP": 4, "ENFP": 4, "ENFJ": 4, "ENTJ": 4, "INTP": 4, "ENTP": 4, "ISFP": 1, "ESFP": 1, "ISTP": 1, "ESTP": 1, "ISFJ": 1, "ESFJ": 1, "ISTJ": 1, "ESTJ": 1 },
+    "INFJ": { "ENFP": 5, "ENTP": 5, "INFP": 4, "INFJ": 4, "ENFJ": 4, "INTJ": 4, "INTP": 4, "ENTJ": 4, "ISFP": 1, "ESFP": 1, "ISTP": 1, "ESTP": 1, "ISFJ": 1, "ESFJ": 1, "ISTJ": 1, "ESTJ": 1 },
+    "ENFJ": { "INFP": 5, "ISFP": 5, "ENFP": 4, "INFJ": 4, "ENFJ": 4, "INTJ": 4, "INTP": 4, "ENTP": 4, "ENTJ": 4, "ESFP": 1, "ISTP": 1, "ESTP": 1, "ISFJ": 1, "ESFJ": 1, "ISTJ": 1, "ESTJ": 1 },
+    "INTJ": { "ENFP": 5, "ENTP": 5, "INFP": 4, "INFJ": 4, "ENFJ": 4, "INTJ": 4, "INTP": 4, "ENTJ": 4, "ISFP": 3, "ESFP": 3, "ISTP": 3, "ESTP": 3, "ISFJ": 2, "ESFJ": 2, "ISTJ": 3, "ESTJ": 3 },
+    "ENTJ": { "INFP": 5, "INTP": 5, "ENFP": 4, "INFJ": 4, "ENFJ": 4, "INTJ": 4, "ENTP": 4, "ENTJ": 4, "ISFP": 3, "ESFP": 3, "ISTP": 3, "ESTP": 3, "ISFJ": 2, "ESFJ": 2, "ISTJ": 3, "ESTJ": 3 },
+    "INTP": { "ENTJ": 5, "ESTJ": 5, "INFP": 4, "ENFP": 4, "INFJ": 4, "INTJ": 4, "INTP": 4, "ENTP": 4, "ISFP": 3, "ESFP": 3, "ISTP": 3, "ESTP": 3, "ISFJ": 2, "ESFJ": 2, "ISTJ": 2, "ENFJ": 2 },
+    "ENTP": { "INFJ": 5, "INTJ": 5, "INFP": 4, "ENFP": 4, "ENFJ": 4, "INTP": 4, "ENTP": 4, "ENTJ": 4, "ISFP": 3, "ESFP": 3, "ISTP": 3, "ESTP": 3, "ISFJ": 2, "ESFJ": 2, "ISTJ": 2, "ESTJ": 2 },
+    "ISFP": { "ESFJ": 5, "ESTJ": 5, "ENFJ": 5, "ISFP": 3, "ESFP": 3, "ISTP": 3, "ESTP": 3, "ISFJ": 3, "ISTJ": 3, "INFP": 1, "ENFP": 1, "INFJ": 1, "INTJ": 2, "ENTJ": 2, "INTP": 2, "ENTP": 2 },
+    "ESFP": { "ISFJ": 5, "ISTJ": 5, "ISFP": 3, "ESFP": 3, "ISTP": 3, "ESTP": 3, "ESFJ": 3, "ESTJ": 3, "INFP": 1, "ENFP": 1, "INFJ": 1, "ENFJ": 1, "INTJ": 2, "ENTJ": 2, "INTP": 2, "ENTP": 2 },
+    "ISTP": { "ESFJ": 5, "ESTJ": 5, "ISFP": 3, "ESFP": 3, "ISTP": 3, "ESTP": 3, "ISFJ": 3, "ISTJ": 3, "INFP": 1, "ENFP": 1, "INFJ": 1, "ENFJ": 1, "INTJ": 2, "ENTJ": 2, "INTP": 2, "ENTP": 2 },
+    "ESTP": { "ISFJ": 5, "ISTJ": 5, "ISFP": 3, "ESFP": 3, "ISTP": 3, "ESTP": 3, "ESFJ": 3, "ESTJ": 3, "INFP": 1, "ENFP": 1, "INFJ": 1, "ENFJ": 1, "INTJ": 2, "ENTJ": 2, "INTP": 2, "ENTP": 2 },
+    "ISFJ": { "ESFP": 5, "ESTP": 5, "ISFJ": 4, "ESFJ": 4, "ISTJ": 4, "ESTJ": 4, "ISFP": 3, "ISTP": 3, "INFP": 1, "ENFP": 1, "INFJ": 1, "ENFJ": 1, "INTJ": 2, "ENTJ": 2, "INTP": 2, "ENTP": 2 },
+    "ESFJ": { "ISFP": 5, "ISTP": 5, "ISFJ": 4, "ESFJ": 4, "ISTJ": 4, "ESTJ": 4, "ESFP": 3, "ESTP": 3, "INFP": 1, "ENFP": 1, "INFJ": 1, "ENFJ": 1, "INTJ": 2, "ENTJ": 2, "INTP": 2, "ENTP": 2 },
+    "ISTJ": { "ESFP": 5, "ESTP": 5, "ISFJ": 4, "ESFJ": 4, "ISTJ": 4, "ESTJ": 4, "ISFP": 3, "ISTP": 3, "INFP": 1, "ENFP": 1, "INFJ": 1, "ENFJ": 1, "INTJ": 2, "ENTJ": 2, "INTP": 2, "ENTP": 2 },
+    "ESTJ": { "ISFP": 5, "ISTP": 5, "INTP": 5, "ISFJ": 4, "ESFJ": 4, "ISTJ": 4, "ESTJ": 4, "ESFP": 3, "ESTP": 3, "INFP": 1, "ENFP": 1, "INFJ": 1, "ENFJ": 1, "INTJ": 2, "ENTJ": 2, "ENTP": 2 }
+};
+
+const RANKS = [
+    { title: "사원", salary: 3000000, limit: 100 },
+    { title: "대리", salary: 4000000, limit: 200 },
+    { title: "과장", salary: 5000000, limit: 350 },
+    { title: "차장", salary: 6500000, limit: 500 },
+    { title: "부장", salary: 8000000, limit: 700 },
+    { title: "이사", salary: 12000000, limit: 9999 }
+];
+
+const COLORS = [
+    { bg: "bg-red-500", text: "text-red-500", light: "bg-red-50", border: "border-red-500" },
+    { bg: "bg-blue-500", text: "text-blue-500", light: "bg-blue-50", border: "border-blue-500" },
+    { bg: "bg-green-500", text: "text-green-500", light: "bg-green-50", border: "border-green-500" },
+    { bg: "bg-yellow-500", text: "text-yellow-500", light: "bg-yellow-50", border: "border-yellow-500" },
+    { bg: "bg-purple-500", text: "text-purple-500", light: "bg-purple-50", border: "border-purple-500" },
+    { bg: "bg-gray-500", text: "text-gray-500", light: "bg-gray-50", border: "border-gray-500" },
+    { bg: "bg-indigo-500", text: "text-indigo-500", light: "bg-indigo-50", border: "border-indigo-500" },
+    { bg: "bg-pink-500", text: "text-pink-500", light: "bg-pink-50", border: "border-pink-500" }
+];
+
+// ----------------------------------------------------------------------
+// 뉴스 데이터 (NEWS_DATA)
+// ----------------------------------------------------------------------
+const NEWS_DATA = [
+    // [Good] 긍정적 뉴스 (16개)
+    { text: "정부가 대규모 IT 지원 정책을 발표했습니다.", type: "good" },
+    { text: "해외 시장 개척 성공 소식이 들려옵니다.", type: "good" },
+    { text: "소비자 신뢰 지수가 역대 최고를 기록했습니다.", type: "good" },
+    { text: "경쟁사의 부도 소식으로 반사이익이 기대됩니다.", type: "good" },
+    { text: "올해 경제 성장률 전망치가 상향 조정되었습니다.", type: "good" },
+    { text: "스타트업 투자 유치가 활발해지며 시장에 돈이 돕니다.", type: "good" },
+    { text: "국제 유가 하락으로 운송 및 생산 비용이 절감됩니다.", type: "good" },
+    { text: "자국의 콘텐츠 열풍으로 국가 브랜드 가치가 상승했습니다.", type: "good" },
+    { text: "연말 소비 시즌을 맞아 유통업계 매출이 급증했습니다.", type: "good" },
+    { text: "신기술 특허 등록 건수가 작년 대비 20% 증가했습니다.", type: "good" },
+    { text: "기업 규제 완화 조치로 신규 사업 진출이 용이해졌습니다.", type: "good" },
+    { text: "전력 수급이 안정화되어 산업용 전기료 인하가 논의됩니다.", type: "good" },
+    { text: "청년 고용률이 상승하여 노동 시장에 활력이 돕니다.", type: "good" },
+    { text: "친환경 에너지 기술 혁신으로 비용 절감이 예상됩니다.", type: "good" },
+    { text: "중소기업 대상 세제 혜택이 확대되었습니다.", type: "good" },
+    { text: "문화 콘텐츠 수출액이 역대 최고치를 달성했습니다.", type: "good" },
+
+    // [Bad] 부정적 뉴스 (16개)
+    { text: "원자재 가격 폭등으로 비용 부담이 커지고 있습니다.", type: "bad" },
+    { text: "세계적인 경기 침체 우려가 제기되었습니다.", type: "bad" },
+    { text: "새로운 규제가 기업들에게 부담을 주고 있습니다.", type: "bad" },
+    { text: "예상치 못한 보안 이슈가 업계에 터졌습니다.", type: "bad" },
+    { text: "글로벌 물류 대란으로 부품 수급에 차질이 생겼습니다.", type: "bad" },
+    { text: "금리 인상으로 인해 기업들의 대출 이자 부담이 큽니다.", type: "bad" },
+    { text: "주요 수출국의 무역 장벽이 높아져 수출길이 막혔습니다.", type: "bad" },
+    { text: "초강력 태풍이 북상하여 시설물 피해가 우려됩니다.", type: "bad" },
+    { text: "알 수 없는 전산망 마비 사태가 곳곳에서 발생했습니다.", type: "bad" },
+    { text: "업계 전반에 걸친 인력난으로 구인난이 심화되었습니다.", type: "bad" },
+    { text: "소비 심리 위축으로 내수 시장이 얼어붙고 있습니다.", type: "bad" },
+    { text: "환율 변동성이 커져 경영 계획 수립에 어려움이 큽니다.", type: "bad" },
+    { text: "주요 원자재 생산국의 정세 불안이 지속되고 있습니다.", type: "bad" },
+    { text: "국제 해킹 그룹의 랜섬웨어 공격 피해가 증가하고 있습니다.", type: "bad" },
+    { text: "이상 기후로 인한 농작물 피해로 물가가 들썩입니다.", type: "bad" },
+    { text: "글로벌 금융 시장의 불확실성이 최고조에 달했습니다.", type: "bad" },
+
+    // [Neutral] 중립/정보성 뉴스 (18개)
+    { text: "오늘 전국적으로 비가 내릴 예정입니다.", type: "neutral" },
+    { text: "국회에서 새로운 법안이 논의 중입니다.", type: "neutral" },
+    { text: "계절이 바뀌며 환절기 감기가 유행합니다.", type: "neutral" },
+    { text: "평범하고 조용한 하루가 예상됩니다.", type: "neutral" },
+    { text: "세계적인 스포츠 축제 개막이 다가오고 있습니다.", type: "neutral" },
+    { text: "새로운 대중교통 노선이 개통되어 출근길이 바뀝니다.", type: "neutral" },
+    { text: "벚꽃 개화 시기가 평년보다 빨라질 전망입니다.", type: "neutral" },
+    { text: "이번 주는 대체로 맑은 날씨가 이어지겠습니다.", type: "neutral" },
+    { text: "서점가에 자기계발서 열풍이 불고 있습니다.", type: "neutral" },
+    { text: "커피 원두 가격 변동에 대한 뉴스가 보도되었습니다.", type: "neutral" },
+    { text: "직장인 점심값 평균이 소폭 상승했다는 통계입니다.", type: "neutral" },
+    { text: "다음 주부터 장마가 시작될 예정입니다.", type: "neutral" },
+    { text: "도심지에 대형 복합 쇼핑몰이 오픈할 예정입니다.", type: "neutral" },
+    { text: "대중교통 요금 인상안에 대한 공청회가 열렸습니다.", type: "neutral" },
+    { text: "휴가철을 맞아 공항이 인파로 붐비고 있습니다.", type: "neutral" },
+    { text: "독감 예방 접종 기간이 시작되었습니다.", type: "neutral" },
+    { text: "주말 도심지에서 대규모 마라톤 대회가 열립니다.", type: "neutral" },
+    { text: "유명 화가의 전시회가 시내 미술관에서 개막했습니다.", type: "neutral" }
+];
+
+// ----------------------------------------------------------------------
+// 개인 업무 스크립트 (WORK_SCRIPTS)
+// ----------------------------------------------------------------------
+const WORK_SCRIPTS = [
+    // 1~10
+    { success: "멋진 기획으로 팀원들의 박수를 받았습니다.", fail: "기획안이 반려되어 처음부터 다시 해야 합니다." },
+    { success: "버그를 한번에 찾아내어 수정했습니다.", fail: "버그를 고치려다 새로운 버그를 3개 만들었습니다." },
+    { success: "클라이언트가 결과물에 매우 만족했습니다.", fail: "클라이언트가 화를 내며 전화를 끊었습니다." },
+    { success: "탕비실에서 맛있는 간식을 나눠 먹으며 힐링했습니다.", fail: "탕비실에 간식이 다 떨어져서 우울해졌습니다." },
+    { success: "회의에서 낸 아이디어가 채택되었습니다.", fail: "회의 시간 내내 딴생각을 하다 지적받았습니다." },
+    { success: "복사기가 말을 잘 들어서 문서 정리가 빨리 끝났습니다.", fail: "복사기에 종이가 걸려서 온몸에 잉크가 묻었습니다." },
+    { success: "거래처와의 협상이 성공적으로 끝났습니다.", fail: "거래처와의 미팅 장소를 착각하여 늦었습니다." },
+    { success: "사내 메신저로 재미있는 농담을 공유해 분위기를 띄웠습니다.", fail: "사내 메신저 실수를 하여 이불킥을 예약했습니다." },
+    { success: "점심 메뉴 선정에 성공하여 모두가 만족했습니다.", fail: "점심 메뉴가 맛이 없어 오후 내내 기운이 없습니다." },
+    { success: "월말 보고서를 완벽하게 작성해 제출했습니다.", fail: "월말 보고서 파일이 날아가서 야근 확정입니다." },
+
+    // 11~20
+    { success: "복잡한 엑셀 수식을 한 번에 완성해 칼퇴근했습니다.", fail: "엑셀 파일이 응답 없음으로 멈춰 작업물을 날렸습니다." },
+    { success: "중요한 이메일을 오타 하나 없이 정중하게 보냈습니다.", fail: "전체 답을 잘못 눌러 흑역사를 생성했습니다." },
+    { success: "프레젠테이션 중 좌중을 압도하는 스피치를 선보였습니다.", fail: "발표 도중 빔프로젝터가 꺼져 당황했습니다." },
+    { success: "책상 정리를 깔끔하게 하여 업무 효율이 올랐습니다.", fail: "커피를 키보드에 쏟아 업무가 마비되었습니다." },
+    { success: "출근길 지하철에 빈자리가 있어 편하게 왔습니다.", fail: "지옥철에 시달리다 출근도 전에 기력을 소진했습니다." },
+    { success: "새로 지급받은 노트북의 성능이 아주 쾌적합니다.", fail: "PC 업데이트가 2시간째 99%에서 멈춰있습니다." },
+    { success: "외부 미팅에서 명함을 센스 있게 건네 호감을 샀습니다.", fail: "거래처 미팅에 명함을 안 가져와서 식은땀을 흘렸습니다." },
+    { success: "법인카드로 결제한 영수증 정리가 완벽합니다.", fail: "중요한 영수증을 잃어버려 사비를 쓰게 생겼습니다." },
+    { success: "사내 교육에서 유용한 스킬을 배워 적용했습니다.", fail: "사내 교육 시간에 꾸벅꾸벅 졸다 상사와 눈이 마주쳤습니다." },
+    { success: "파일 이름을 규칙적으로 정리해 1초 만에 찾았습니다.", fail: "최종_진짜최종_수정본.file이 너무 많아 헷갈립니다." },
+
+    // 21~30
+    { success: "점심시간에 웨이팅 없이 맛집 입장에 성공했습니다.", fail: "가려던 식당이 임시 휴무라 편의점 김밥을 먹었습니다." },
+    { success: "의자가 내 몸에 딱 맞게 세팅되어 허리가 편안합니다.", fail: "의자 높낮이 조절이 고장 나서 자세가 어정쩡합니다." },
+    { success: "연말정산 결과가 예상보다 좋아 보너스를 받은 기분입니다.", fail: "연말정산 서류가 미비하여 세무팀 호출을 받았습니다." },
+    { success: "회사 화초에 물을 주며 잠시 마음의 평화를 얻었습니다.", fail: "책상 위 선인장을 쳐서 가시에 찔렸습니다." },
+    { success: "팀장님의 부재로 사무실 분위기가 자유롭습니다.", fail: "팀장님이 휴가 복귀 후 밀린 업무를 쏟아냅니다." },
+    { success: "주차 자리를 한 번에 찾아 기분 좋게 하루를 시작했습니다.", fail: "주차할 곳이 없어 회사 주변을 세 바퀴 돌았습니다." },
+    { success: "화상 회의 연결이 매끄럽고 화질이 좋았습니다.", fail: "마이크가 켜진 줄 모르고 혼잣말을 하다 들켰습니다." },
+    { success: "백업해둔 파일 덕분에 위기를 모면했습니다.", fail: "랜섬웨어 주의 메일을 모르고 클릭할 뻔했습니다." },
+    { success: "오후 3시에 당이 떨어질 때 초콜릿을 발견했습니다.", fail: "카페인 수혈이 시급한데 커피 머신이 고장 났습니다." },
+    { success: "밀린 결재 서류들이 순식간에 승인되었습니다.", fail: "결재 라인의 임원분이 출장을 가서 결재가 멈췄습니다." },
+
+    // 31~40
+    { success: "신청한 연차가 바로 승인되어 여행 계획을 짰습니다.", fail: "바쁜 시즌이라 연차 신청이 반려되어 좌절했습니다." },
+    { success: "사원증을 단말기에 대자마자 문이 열려 쾌적합니다.", fail: "사원증을 집에 두고 와서 로비에서 발을 동동 굴렀습니다." },
+    { success: "비밀번호 변경 알림에 맞춰 안전하게 변경했습니다.", fail: "변경된 비밀번호가 기억나지 않아 계정이 잠겼습니다." },
+    { success: "재택근무 날, 놀라운 집중력으로 업무를 끝냈습니다.", fail: "재택근무 중 침대의 유혹을 이기지 못하고 잠들었습니다." },
+    { success: "신청한 사무용품이 빠르게 도착해 업무가 편해졌습니다.", fail: "급히 필요한 A4 용지가 품절되어 이면지를 찾고 있습니다." },
+    { success: "엘리베이터가 바로 도착하여 기다림 없이 올라갔습니다.", fail: "엘리베이터 점검 중이라 15층까지 걸어 올라갔습니다." },
+    { success: "화장실 청소 직후라 매우 쾌적하게 이용했습니다.", fail: "화장실에 갔는데 휴지가 없어 난감한 상황입니다." },
+    { success: "회사로 시킨 택배를 안전하게 수령하여 기쁩니다.", fail: "택배 보관함 비밀번호 오류로 물건을 못 꺼내고 있습니다." },
+    { success: "건강검진 결과가 모두 정상이라 안도했습니다.", fail: "건강검진 결과 재검 통보를 받고 걱정이 늘었습니다." },
+    { success: "사내 동호회에 가입하여 새로운 취미를 찾았습니다.", fail: "활동하던 동호회가 인원 부족으로 폐지되었습니다." },
+
+    // 41~50
+    { success: "명절 선물로 원하던 최고급 세트를 받았습니다.", fail: "명절 선물로 받은 치약 세트가 터져서 가방이 엉망입니다." },
+    { success: "책상을 예쁜 소품으로 꾸며 일할 맛이 납니다.", fail: "책상이 너무 좁아 서류를 놓을 공간조차 없습니다." },
+    { success: "잠깐의 스트레칭으로 뻐근하던 목이 시원해졌습니다.", fail: "스트레칭을 하다가 다리에 쥐가 나서 소리를 질렀습니다." },
+    { success: "텀블러를 깨끗이 세척하여 상쾌하게 물을 마십니다.", fail: "텀블러 뚜껑이 덜 닫혀 서류 위에 물을 쏟았습니다." },
+    { success: "비상 연락망 업데이트를 제때 하여 공지를 잘 받았습니다.", fail: "비상 연락처가 옛날 번호라 중요 문자를 못 받았습니다." },
+    { success: "사내 게시판에 쓴 글이 베스트에 올라 뿌듯합니다.", fail: "익명 게시판에서 내 얘기 같은 글을 보고 상처받았습니다." },
+    { success: "사무실 온도가 딱 적당하여 업무 집중이 잘 됩니다.", fail: "에어컨이 너무 강해 한여름에 담요를 덮고 떱니다." },
+    { success: "노이즈 캔슬링 이어폰 덕분에 소음 없이 일했습니다.", fail: "중요한 순간에 이어폰 배터리가 방전되었습니다." },
+    { success: "탁상 달력에 일정을 꼼꼼히 적어 실수가 없습니다.", fail: "빨간 날인 줄 알고 늦잠을 자다가 지각했습니다." },
+    { success: "갑작스러운 비에 미리 챙겨둔 우산을 썼습니다.", fail: "일기예보를 안 보고 우산 없이 나갔다 쫄딱 젖었습니다." }
+];
+
+// ----------------------------------------------------------------------
+// 협업 스크립트 (COLLAB_SCRIPTS)
+// ----------------------------------------------------------------------
+const COLLAB_SCRIPTS = [
+    // 1~10
+    { success: "함께 아이디어를 모아 훌륭한 기획안을 완성했습니다.", fail: "의견 차이가 좁혀지지 않아 회의가 길어졌습니다." },
+    { success: "업무 분장이 완벽하여 프로젝트가 조기 달성되었습니다.", fail: "서로 일을 미루다가 마감 기한을 넘겼습니다." },
+    { success: "회식 자리에서 끈끈한 동료애를 다졌습니다.", fail: "회식 메뉴 선정부터 의견이 갈려 분위기가 냉랭했습니다." },
+    { success: "점심 식사를 함께하며 맛집 탐방에 성공했습니다.", fail: "점심을 먹으러 갔으나 웨이팅이 너무 길어 포기했습니다." },
+    { success: "서로의 코드를 리뷰해주며 버그를 사전에 차단했습니다.", fail: "코드 리뷰 중 자존심 싸움으로 번져 사이가 서먹해졌습니다." },
+    { success: "휴게실에서 담소를 나누며 스트레스를 풀었습니다.", fail: "휴게실에서 뒷담화를 하다가 당사자에게 들켰습니다." },
+    { success: "신입 사원에게 업무를 친절히 알려주어 존경받았습니다.", fail: "후배에게 업무를 설명하다가 나도 헷갈려버렸습니다." },
+    { success: "타 부서와의 협조가 원활해 일이 일사천리로 진행됩니다.", fail: "타 부서 담당자가 연락을 받지 않아 속이 타들어 갑니다." },
+    { success: "팀원들과 공동 구매한 간식이 도착해 파티를 열었습니다.", fail: "냉장고에 넣어둔 내 간식을 누군가 먹어버렸습니다." },
+    { success: "긴급 회의에서 모두가 합심하여 해결책을 도출했습니다.", fail: "회의에서 아무도 말을 하지 않아 정적만 흘렀습니다." },
+
+    // 11~20
+    { success: "공유 폴더 정리를 함께하여 자료 찾기가 쉬워졌습니다.", fail: "누군가 공유 폴더의 중요 파일을 실수로 삭제했습니다." },
+    { success: "워크숍에서 팀워크를 다지고 즐거운 시간을 보냈습니다.", fail: "워크숍 장기 자랑 압박에 스트레스만 받았습니다." },
+    { success: "동료가 내 실수를 조용히 덮어주어 감동했습니다.", fail: "동료의 실수를 수습하느라 내 업무를 못 했습니다." },
+    { success: "스케줄 조율이 완벽하여 전원 참석 회의가 성사되었습니다.", fail: "회의 시간을 잡으려다 스케줄 테트리스에 실패했습니다." },
+    { success: "칭찬 릴레이를 통해 팀 분위기가 훈훈해졌습니다.", fail: "익명 건의함에 서로를 비난하는 쪽지가 발견되었습니다." },
+    { success: "사다리 타기 게임으로 커피 내기를 하여 즐거웠습니다.", fail: "내가 커피 내기에 걸려 지갑이 얇아졌습니다." },
+    { success: "함께 야근하며 전우애가 생겼습니다.", fail: "눈치 게임을 하다가 나만 남고 다들 퇴근했습니다." },
+    { success: "경쟁 PT에서 팀원들의 합이 돋보였습니다.", fail: "발표자와 자료 넘기는 사람의 호흡이 안 맞아 삐걱댔습니다." },
+    { success: "인수인계 문서를 완벽하게 만들어 후임자가 감동했습니다.", fail: "인수인계 내용이 부실하여 퇴사 후에도 연락이 옵니다." },
+    { success: "사내 체육대회에서 우리 팀이 우승하여 상금을 탔습니다.", fail: "체육대회에서 의욕이 앞서 넘어져 부상을 입었습니다." },
+
+    // 21~30
+    { success: "팀 단체 봉사활동을 통해 보람찬 하루를 보냈습니다.", fail: "주말 봉사활동에 강제 동원되어 불만이 폭주했습니다." },
+    { success: "동료의 경조사를 함께 챙겨주며 마음을 나눴습니다.", fail: "축의금 봉투에 이름을 안 쓰고 내서 곤란해졌습니다." },
+    { success: "사내 스터디 그룹을 만들어 함께 성장하고 있습니다.", fail: "스터디 그룹이 맛집 탐방 모임으로 변질되었습니다." },
+    { success: "회의실 예약에 성공하여 쾌적한 환경에서 회의했습니다.", fail: "회의실을 더블 부킹 하는 바람에 복도에서 회의했습니다." },
+    { success: "프로젝트 회고 시간에 건설적인 피드백이 오갔습니다.", fail: "회고 시간이 서로 탓을 하는 청문회 자리가 되었습니다." },
+    { success: "워크숍 장기자랑에서 1등을 하여 분위기 메이커가 됐습니다.", fail: "장기자랑 반응이 싸늘하여 쥐구멍에 숨고 싶었습니다." },
+    { success: "동료를 위한 롤링페이퍼에 감동적인 메시지를 적었습니다.", fail: "롤링페이퍼에 적을 말이 없어 '행복하세요'만 썼습니다." },
+    { success: "점심시간에 다 같이 산책하며 리프레시했습니다.", fail: "산책을 나갔다가 미세먼지만 잔뜩 마시고 들어왔습니다." },
+    { success: "팀 단체 티셔츠를 맞춰 입고 단합력을 과시했습니다.", fail: "단체 티셔츠 디자인이 너무 촌스러워 입기 부끄럽습니다." },
+    { success: "봄맞이 야유회 날씨가 좋아 인생 사진을 건졌습니다.", fail: "야유회 날 비가 쏟아져 실내에서만 갇혀 있었습니다." }
+];
+
+// --- Game State ---
+
+const MAX_COMPANY_COUNT = 6;
+let state = {
+    day: 1,
+    money: 1000000,
+    companyCount: 3,
+    companies: [],
+    characters: [],
+    stocks: {},
+    nextId: 1
+};
+
+// --- Initialization ---
+
+function init() {
+    setupUI();
+    createCompanies(state.companyCount);
+    updateDisplay();
+}
+
+function setupUI() {
+    const mbtiSelect = document.getElementById('new-mbti');
+    MBTI_TYPES.forEach(t => {
+        const op = document.createElement('option');
+        op.value = t;
+        op.innerText = t;
+        mbtiSelect.appendChild(op);
+    });
+
+    const rankSelect = document.getElementById('new-rank');
+    RANKS.forEach((r, idx) => {
+        const op = document.createElement('option');
+        op.value = idx;
+        op.innerText = r.title;
+        rankSelect.appendChild(op);
+    });
+}
+
+function createCompanies(count) {
+    state.companies = [];
+    state.companyCount = count;
+    for (let i = 0; i < count; i++) {
+        const price = Math.floor(Math.random() * 30000) + 20000;
+        state.companies.push({
+            id: i,
+            name: `Company ${String.fromCharCode(65 + i)}`,
+            price: price,
+            prevPrice: price,
+            color: COLORS[i % COLORS.length]
+        });
+        state.stocks[i] = { count: 0, cost: 0 };
+    }
+    renderCompanySelect();
+    renderMap();
+}
+
+function changeCompanyCount(delta) {
+    const newCount = state.companies.length + delta;
+    if (newCount < 1) {
+        alert("최소 1개의 회사는 있어야 합니다.");
+        return;
+    }
+    if (newCount > MAX_COMPANY_COUNT) {
+        alert(`최대 ${MAX_COMPANY_COUNT}개까지만 가능합니다.`);
+        return;
+    }
+
+    if (delta > 0) {
+        // Add Company
+        const i = state.companies.length;
+        const price = Math.floor(Math.random() * 30000) + 20000;
+        state.companies.push({
+            id: i,
+            name: `Company ${String.fromCharCode(65 + i)}`,
+            price: price,
+            prevPrice: price,
+            color: COLORS[i % COLORS.length]
+        });
+        state.stocks[i] = { count: 0, cost: 0 };
+    } else {
+        // Remove Company
+        const removedCompany = state.companies.pop();
+        delete state.stocks[removedCompany.id];
+        
+        // Fire employees
+        const fireList = state.characters.filter(c => c.companyId === removedCompany.id);
+        state.characters = state.characters.filter(c => c.companyId !== removedCompany.id);
+        if(fireList.length > 0) {
+            addLog('system', `${removedCompany.name}의 폐업으로 ${fireList.length}명이 해고되었습니다.`);
+        }
+    }
+    
+    state.companyCount = state.companies.length;
+    renderCompanySelect();
+    renderMap();
+    renderRoster();
+}
+
+function renderCompanySelect() {
+    const companySelect = document.getElementById('new-company');
+    companySelect.innerHTML = '';
+    state.companies.forEach(c => {
+        const op = document.createElement('option');
+        op.value = c.id;
+        op.innerText = c.name;
+        companySelect.appendChild(op);
+    });
+}
+
+// --- Helpers ---
+
+function getRandomItem(arr) {
+    return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function getCompatibility(mbti1, mbti2) {
+    if (!COMPATIBILITY_DATA[mbti1]) return 3;
+    return COMPATIBILITY_DATA[mbti1][mbti2] || 3;
+}
+
+// Helper to handle old vs new stock data structure
+function getStockData(companyId) {
+    let stock = state.stocks[companyId];
+    if (typeof stock === 'number') {
+        // Migrate old data
+        const count = stock;
+        stock = { count: count, cost: 0 };
+        state.stocks[companyId] = stock;
+    }
+    if (!stock) {
+        stock = { count: 0, cost: 0 };
+        state.stocks[companyId] = stock;
+    }
+    return stock;
+}
+
+// --- Character Logic ---
+
+function addCharacter() {
+    if (state.characters.length >= 30) {
+        alert("전체 직원 수는 30명을 넘을 수 없습니다.");
+        return;
+    }
+
+    const nameInput = document.getElementById('new-name');
+    const mbtiInput = document.getElementById('new-mbti');
+    const companyInput = document.getElementById('new-company');
+    const rankInput = document.getElementById('new-rank');
+    
+    const name = nameInput.value.trim();
+    if(state.companies.length === 0) return;
+    const companyId = parseInt(companyInput.value);
+
+    if (!name || !mbtiInput.value) {
+        alert("이름과 MBTI를 입력해주세요.");
+        return;
+    }
+
+    const exists = state.characters.some(c => c.companyId === companyId && c.name === name);
+    if (exists) {
+        alert("같은 회사 내에 이미 존재하는 이름입니다.");
+        return;
+    }
+
+    const char = {
+        id: state.nextId++,
+        name: name,
+        mbti: mbtiInput.value,
+        companyId: companyId,
+        rankIdx: parseInt(rankInput.value),
+        xp: 0,
+        affinity: {},
+        partnerId: null,
+        status: 'normal',
+        lastAction: ''
+    };
+
+    state.characters.push(char);
+    addLog('system', `${char.name}님(${char.mbti})이 ${state.companies[char.companyId].name}의 ${RANKS[char.rankIdx].title}(으)로 입사했습니다.`);
+    nameInput.value = '';
+    
+    renderRoster();
+    renderMap();
+}
+
+// --- Next Day Logic ---
+
+function nextDay() {
+    state.day++;
+    
+    const news = getRandomItem(NEWS_DATA);
+    let stockMod = 0;
+    let newsLogType = 'log-news-neutral';
+
+    addLog(newsLogType.replace('log-', ''), `[Day ${state.day}] ${news.text}`);
+
+    let companyPerformance = {};
+    state.companies.forEach(c => companyPerformance[c.id] = 0);
+    
+    const totalSalary = state.characters.reduce((sum, char) => sum + RANKS[char.rankIdx].salary, 0);
+
+    const processedChars = new Set();
+    state.characters.forEach(c => c.status = 'normal');
+
+    const shuffled = [...state.characters].sort(() => Math.random() - 0.5);
+
+    shuffled.forEach(char => {
+        if (processedChars.has(char.id)) return;
+
+        processedChars.add(char.id);
+
+        if (Math.random() < 0.1) {
+            char.status = 'late';
+            companyPerformance[char.companyId] -= 2;
+        } else {
+            char.status = 'working';
+        }
+
+        const roll = Math.random() * 100;
+        
+        if (roll < 40) {
+            const sameCompany = state.characters.filter(c => c.companyId === char.companyId && !processedChars.has(c.id));
+            if (sameCompany.length >= 1) {
+                const partnerCount = Math.min(sameCompany.length, Math.floor(Math.random() * 3) + 1);
+                const partners = sameCompany.slice(0, partnerCount);
+                
+                const isSuccess = Math.random() < 0.7;
+                const script = getRandomItem(COLLAB_SCRIPTS);
+                const names = [char.name, ...partners.map(p => p.name)].join(', ');
+
+                partners.forEach(p => processedChars.add(p.id));
+                const allParticipants = [char, ...partners];
+
+                if(isSuccess) {
+                    addLog('collab-success', `[사내협업/성공] ${names}: ${script.success}`);
+                    allParticipants.forEach(c => {
+                        companyPerformance[c.companyId] += 2;
+                        c.xp += 6;
+                    });
+                    updateGroupAffinity(allParticipants, true);
+                } else {
+                    addLog('collab-fail', `[사내협업/실패] ${names}: ${script.fail}`);
+                    allParticipants.forEach(c => {
+                        companyPerformance[c.companyId] -= 1;
+                        c.xp = Math.max(0, c.xp - 5);
+                    });
+                    updateGroupAffinity(allParticipants, false);
+                }
+                return;
+            }
+        }
+        
+        if (roll >= 40 && roll < 50) {
+            const otherCompany = state.characters.filter(c => c.companyId !== char.companyId && !processedChars.has(c.id));
+            if (otherCompany.length >= 1) {
+                 const partnerCount = Math.min(otherCompany.length, Math.floor(Math.random() * 3) + 1);
+                 const partners = otherCompany.slice(0, partnerCount);
+
+                 const isSuccess = Math.random() < 0.6;
+                 const script = getRandomItem(COLLAB_SCRIPTS);
+                 const names = [char.name, ...partners.map(p => `${p.name}(${state.companies[p.companyId].name})`)].join(', ');
+                 
+                 partners.forEach(p => processedChars.add(p.id));
+                 const allParticipants = [char, ...partners];
+
+                 if(isSuccess) {
+                     addLog('collab-success', `[외부미팅/성공] ${names}: ${script.success}`);
+                     allParticipants.forEach(c => {
+                        companyPerformance[c.companyId] += 3; 
+                        c.xp += 10;
+                     });
+                     updateGroupAffinity(allParticipants, true);
+                 } else {
+                     addLog('collab-fail', `[외부미팅/실패] ${names}: ${script.fail}`);
+                     allParticipants.forEach(c => {
+                        companyPerformance[c.companyId] -= 1;
+                        c.xp = Math.max(0, c.xp - 5);
+                     });
+                     updateGroupAffinity(allParticipants, false);
+                 }
+                 return;
+            }
+        }
+
+        const success = Math.random() < 0.6;
+        const scriptData = getRandomItem(WORK_SCRIPTS);
+        
+        if (success) {
+            char.xp += 10;
+            companyPerformance[char.companyId] += 1;
+            addLog('work-success', `${char.name}: ${scriptData.success}`);
+        } else {
+            companyPerformance[char.companyId] -= 1;
+            char.xp = Math.max(0, char.xp - 5);
+            addLog('work-fail', `${char.name}: ${scriptData.fail}`);
+        }
+    });
+
+    checkPromotionsAndLove();
+    updateDisplay();
+    renderRoster();
+    renderMap();
+}
+
+function updateGroupAffinity(group, isProjectSuccess) {
+    for (let i = 0; i < group.length; i++) {
+        for (let j = i + 1; j < group.length; j++) {
+            processInteraction(group[i], group[j], isProjectSuccess);
+        }
+    }
+}
+
+function processInteraction(char1, char2, isProjectSuccess) {
+    const compScore = getCompatibility(char1.mbti, char2.mbti);
+    
+    let delta = 0;
+    let successChance = compScore * 15;
+    if (isProjectSuccess) successChance += 30;
+    else successChance -= 30;
+    
+    if (Math.random() * 100 < successChance) {
+        delta = (compScore * 2) + Math.floor(Math.random() * 10) + 1;
+        if(isProjectSuccess) delta += 5;
+    } else {
+        delta = -1 * ((6 - compScore) * 2 + Math.floor(Math.random() * 10) + 1);
+        if(!isProjectSuccess) delta -= 5;
+    }
+
+    const current1 = char1.affinity[char2.id] || 0;
+    const current2 = char2.affinity[char1.id] || 0;
+    
+    char1.affinity[char2.id] = Math.max(-100, Math.min(100, current1 + delta));
+    char2.affinity[char1.id] = Math.max(-100, Math.min(100, current2 + delta));
+}
+
+function checkPromotionsAndLove() {
+    state.characters.forEach(char => {
+        if (char.xp >= RANKS[char.rankIdx].limit) {
+            if (char.rankIdx < RANKS.length - 1) {
+                char.rankIdx++;
+                char.xp = 0;
+                addLog('system', `축하합니다! ${char.name}님이 ${RANKS[char.rankIdx].title}(으)로 승진했습니다!`);
+            } else {
+                char.rankIdx = 0;
+                char.xp = 0;
+                addLog('system', `${char.name} 이사님이 신입 사원으로 위장 취업을 하셨습니다!`);
+            }
+        }
+
+        if (!char.partnerId) {
+            for (const [targetIdStr, score] of Object.entries(char.affinity)) {
+                const targetId = parseInt(targetIdStr);
+                const target = state.characters.find(c => c.id === targetId);
+                
+                if (target && !target.partnerId && score >= 80) {
+                    if (Math.random() < 0.1) {
+                        char.partnerId = targetId;
+                        target.partnerId = char.id;
+                        addLog('love', `💖 ${char.name}님과 ${target.name}님이 연애를 시작했습니다! (친밀도: ${score})`);
+                        break; 
+                    }
+                }
+            }
+        } else {
+            const score = char.affinity[char.partnerId];
+            if (score < 60) {
+                const partner = state.characters.find(c => c.id === char.partnerId);
+                char.partnerId = null;
+                if(partner) partner.partnerId = null;
+                addLog('love', `💔 ${char.name}님과 ${partner ? partner.name : '상대'}님이 헤어졌습니다.`);
+            }
+        }
+    });
+}
+
+// --- UI Functions ---
+
+function switchTab(tabId) {
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(el => {
+        el.classList.remove('active-tab', 'text-indigo-600', 'border-indigo-600');
+        el.classList.add('text-gray-500', 'border-transparent');
+    });
+    
+    document.getElementById(tabId).classList.add('active');
+    const activeBtn = document.querySelector(`button[data-tab="${tabId}"]`);
+    if(activeBtn) {
+        activeBtn.classList.add('text-indigo-600', 'border-indigo-600');
+        activeBtn.classList.remove('text-gray-500', 'border-transparent');
+    }
+}
+
+function addLog(type, text) {
+    const container = document.getElementById('log-container');
+    const entry = document.createElement('div');
+    entry.className = `log-entry log-${type}`;
+    entry.innerText = text;
+    container.prepend(entry);
+    if (container.children.length > 100) container.removeChild(container.lastChild);
+}
+
+function clearLogs() {
+    document.getElementById('log-container').innerHTML = '';
+}
+
+function updateDisplay() {
+    document.getElementById('day-display').innerText = state.day;
+}
+
+// --- Save / Load / Import / Export ---
+
+function saveData(type) {
+    const data = createSaveData(type);
+    if (type === 'basic') {
+        localStorage.setItem('officeSim_basic', JSON.stringify(data));
+        alert('기본 데이터가 브라우저에 저장되었습니다.');
+    } else {
+        localStorage.setItem('officeSim_full', JSON.stringify(data));
+        alert('전체 데이터가 브라우저에 저장되었습니다.');
+    }
+}
+
+function loadData(type) {
+    const key = type === 'basic' ? 'officeSim_basic' : 'officeSim_full';
+    const dataStr = localStorage.getItem(key);
+    if (!dataStr) {
+        alert('저장된 데이터가 없습니다.');
+        return;
+    }
+    if(!confirm("데이터를 불러오면 현재 진행 상황이 덮어씌워집니다. 진행하시겠습니까?")) return;
+    
+    const data = JSON.parse(dataStr);
+    applySaveData(type, data);
+}
+
+function exportJSON(type) {
+    const data = createSaveData(type);
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `office_sim_${type}_${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+function importJSON(type) {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'application/json';
+    input.onchange = e => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = event => {
+            try {
+                const data = JSON.parse(event.target.result);
+                if(!confirm("파일 데이터를 불러오면 현재 진행 상황이 덮어씌워집니다. 진행하시겠습니까?")) return;
+                applySaveData(type, data);
+            } catch (err) {
+                alert('파일 형식이 올바르지 않습니다.');
+            }
+        };
+        reader.readAsText(file);
+    };
+    input.click();
+}
+
+function createSaveData(type) {
+    if (type === 'basic') {
+        return {
+            companies: state.companies.map(c => ({ id: c.id, name: c.name, color: c.color })),
+            characters: state.characters.map(c => ({ 
+                name: c.name, 
+                mbti: c.mbti, 
+                companyId: c.companyId, 
+                rankIdx: c.rankIdx 
+            }))
+        };
+    } else {
+        return state;
+    }
+}
+
+function applySaveData(type, data) {
+    if (type === 'basic') {
+        // Reset State
+        state.day = 1;
+        state.money = 1000000;
+        state.companies = [];
+        state.stocks = {};
+        state.characters = [];
+        state.nextId = 1;
+
+        data.companies.forEach(c => {
+            const price = Math.floor(Math.random() * 30000) + 20000;
+            state.companies.push({
+                id: c.id,
+                name: c.name,
+                price: price,
+                prevPrice: price,
+                color: c.color || COLORS[c.id % COLORS.length]
+            });
+            state.stocks[c.id] = { count: 0, cost: 0 };
+        });
+        state.companyCount = state.companies.length;
+
+        data.characters.forEach(c => {
+             state.characters.push({
+                id: state.nextId++,
+                name: c.name,
+                mbti: c.mbti,
+                companyId: c.companyId,
+                rankIdx: c.rankIdx,
+                xp: 0,
+                affinity: {},
+                partnerId: null,
+                status: 'normal',
+                lastAction: ''
+            });
+        });
+
+        clearLogs();
+        addLog('system', '기본 데이터를 불러왔습니다. 새로운 시뮬레이션을 시작합니다.');
+
+    } else {
+        state = data;
+        // Fix stock structure if old format
+        state.companies.forEach(c => {
+            if(typeof state.stocks[c.id] === 'number') {
+                state.stocks[c.id] = { count: state.stocks[c.id], cost: 0 };
+            }
+        });
+        
+        clearLogs();
+        addLog('system', `Day ${state.day} 데이터를 성공적으로 불러왔습니다.`);
+    }
+    
+    updateDisplay();
+    renderRoster();
+    renderMap();
+    renderCompanySelect();
+}
+
+// --- Roster & Modal ---
+
+function renderRoster() {
+    const list = document.getElementById('roster-list');
+    list.innerHTML = '';
+    
+    state.characters.forEach(char => {
+        const company = state.companies.find(c => c.id === char.companyId);
+        if(!company) return;
+
+        const card = document.createElement('div');
+        card.className = "bg-white p-3 rounded shadow flex justify-between items-center cursor-pointer hover:bg-gray-50";
+        card.ondblclick = () => openAffinityModal(char.id);
+        
+        let partnerText = "";
+        if (char.partnerId) {
+            const partner = state.characters.find(c => c.id === char.partnerId);
+            if(partner) partnerText = `<span class="text-pink-500 text-xs ml-2">♥ ${partner.name}</span>`;
+        }
+
+        card.innerHTML = `
+            <div>
+                <div class="font-bold flex items-center">
+                    <span class="w-2 h-2 rounded-full ${company.color.bg} mr-2"></span>
+                    ${char.name} 
+                    <span class="text-xs text-gray-500 ml-1">(${char.mbti})</span>
+                    ${partnerText}
+                </div>
+                <div class="text-xs text-gray-600">
+                    ${company.name} | ${RANKS[char.rankIdx].title} | Exp: ${char.xp}/${RANKS[char.rankIdx].limit}
+                </div>
+            </div>
+            <div class="text-right">
+                <button onclick="event.stopPropagation(); fireCharacter(${char.id})" class="text-xs text-red-400 border border-red-200 px-2 py-1 rounded hover:bg-red-50">해고</button>
+            </div>
+        `;
+        list.appendChild(card);
+    });
+}
+
+function fireCharacter(id) {
+    if(confirm("정말 해고하시겠습니까?")) {
+        state.characters = state.characters.filter(c => c.id !== id);
+        state.characters.forEach(c => {
+            if(c.partnerId === id) c.partnerId = null;
+            delete c.affinity[id];
+        });
+        renderRoster();
+        renderMap();
+    }
+}
+
+function openAffinityModal(charId) {
+    const char = state.characters.find(c => c.id === charId);
+    if(!char) return;
+
+    const modal = document.getElementById('affinity-modal');
+    const body = document.getElementById('modal-body');
+
+    document.getElementById('modal-title').innerText = `${char.name}님의 인맥 현황`;
+    
+    let html = `<table class="w-full text-sm text-left">
+        <thead class="bg-gray-100 font-bold">
+            <tr>
+                <th class="p-2">대상</th>
+                <th class="p-2">소속</th>
+                <th class="p-2">MBTI</th>
+                <th class="p-2">궁합</th>
+                <th class="p-2">친밀도</th>
+            </tr>
+        </thead>
+        <tbody>`;
+    
+    const others = state.characters.filter(c => c.id !== char.id && char.affinity[c.id] !== undefined);
+    
+    if(others.length === 0) {
+        html += `<tr><td colspan="5" class="p-4 text-center text-gray-500">아직 교류한 사람이 없습니다.</td></tr>`;
+    }
+
+    others.forEach(target => {
+        const score = char.affinity[target.id];
+        const comp = getCompatibility(char.mbti, target.mbti);
+        const compColor = comp >= 4 ? 'text-green-600' : (comp <= 2 ? 'text-red-500' : 'text-gray-600');
+        const scoreColor = score > 0 ? 'text-blue-600' : (score < 0 ? 'text-red-600' : 'text-gray-600');
+        
+        let rowBg = "";
+        if(char.partnerId === target.id) rowBg = "bg-pink-50";
+
+        const targetCompany = state.companies.find(c => c.id === target.companyId);
+
+        html += `<tr class="border-b ${rowBg}">
+            <td class="p-2 font-medium">${target.name}</td>
+            <td class="p-2 text-xs">${targetCompany ? targetCompany.name : 'Unknown'}</td>
+            <td class="p-2 text-xs">${target.mbti}</td>
+            <td class="p-2 font-bold ${compColor}">${comp}점</td>
+            <td class="p-2 font-bold ${scoreColor}">${score}</td>
+        </tr>`;
+    });
+    
+    html += `</tbody></table>`;
+    body.innerHTML = html;
+    modal.style.display = 'block';
+}
+
+function closeModal() {
+    document.getElementById('affinity-modal').style.display = 'none';
+}
+
+window.onclick = function(event) {
+    const modal = document.getElementById('affinity-modal');
+    if (event.target == modal) {
+        modal.style.display = "none";
+    }
+}
+
+// --- Map & Renaming ---
+
+function renderMap() {
+    const container = document.getElementById('map-container');
+    container.innerHTML = '';
+
+    state.companies.forEach(comp => {
+        const building = document.createElement('div');
+        building.className = `company-building flex flex-col`;
+        
+        const header = document.createElement('div');
+        header.className = `${comp.color.bg} text-white p-2 text-center font-bold text-sm h-10 flex items-center justify-center`;
+        header.id = `comp-header-${comp.id}`;
+        header.ondblclick = () => startEditCompany(comp.id);
+        header.innerText = comp.name;
+        
+        building.appendChild(header);
+
+        const reversedRanks = [...RANKS].reverse();
+        reversedRanks.forEach((rank, idx) => {
+            const actualRankIdx = RANKS.length - 1 - idx;
+            const floor = document.createElement('div');
+            floor.className = "floor bg-white";
+            
+            const chars = state.characters.filter(c => c.companyId === comp.id && c.rankIdx === actualRankIdx);
+            
+            chars.forEach(c => {
+                const charEl = document.createElement('div');
+                charEl.className = `char-icon ${comp.color.bg} shadow-md hover:scale-110 transition`;
+                charEl.title = `${c.name} (${c.mbti})\n상태: ${c.status}`;
+                charEl.innerText = c.name[0];
+                
+                if (c.status === 'late') {
+                    charEl.innerHTML += `<div class="char-status bg-red-500"></div>`;
+                } else if (c.partnerId) {
+                     charEl.innerHTML += `<div class="char-status bg-pink-500"></div>`;
+                } else {
+                    charEl.innerHTML += `<div class="char-status bg-green-400"></div>`;
+                }
+                floor.appendChild(charEl);
+            });
+
+            const label = document.createElement('div');
+            label.className = "floor-label";
+            label.innerText = rank.title + "층";
+            floor.appendChild(label);
+            building.appendChild(floor);
+        });
+
+        container.appendChild(building);
+    });
+}
+
+function startEditCompany(id) {
+    const header = document.getElementById(`comp-header-${id}`);
+    const comp = state.companies.find(c => c.id === id);
+    if(!comp) return;
+
+    const currentName = comp.name;
+    header.innerHTML = '';
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = currentName;
+    input.className = 'editable-input';
+    input.onblur = () => saveCompany(id, input.value);
+    input.onkeypress = (e) => { if(e.key === 'Enter') input.blur(); };
+    header.appendChild(input);
+    input.focus();
+}
+
+function saveCompany(id, newName) {
+    const comp = state.companies.find(c => c.id === id);
+    if(comp && newName.trim()) {
+        comp.name = newName.trim();
+    }
+    renderMap();
+    renderCompanySelect();
+    renderRoster();
+}
+
+init();
+
+</script>
+</body>
+</html>
